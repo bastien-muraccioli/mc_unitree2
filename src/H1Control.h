@@ -69,13 +69,11 @@ namespace mc_unitree
 struct H1ConfigParameter
 {
   H1ConfigParameter()
-  : network_(""), mode_(ControlMode::Position)
+  : network_("")
   {}
   /* Communication information with a real robot */
   /* Connection network */
   std::string network_;
-  /* ControlMode : Position/Velocity/Torque (Velocity is not supported)*/
-  ControlMode mode_ = ControlMode::Position;
   
   // Default configuration
   Vector20 q_init_{
@@ -84,26 +82,6 @@ struct H1ConfigParameter
     0.0, 0.4,  0.0,  0.0, -0.4,
     0.4, 0.0,  0.0, -0.4,       // Torso and arms
     0.0};                       // Unused joint
-
-  // Limits defined by Unitree
-  Vector20 q_lim_lower_{
-    -0.35, -0.3, -2.0, -0.05, -0.8,
-    -0.35, -0.3, -2.0, -0.05, -0.8, // Legs
-    -1.65, -2.7, -0.2, -0.8,  -0.85,
-    -2.7, -2.8, -3.8, -0.85, // Torso and arms
-    0.0};                       // Unused joint
-  Vector20 q_lim_upper_{
-    0.35, 0.3, 0.9, 1.7, 0.45,
-    0.35, 0.3, 0.9, 1.7, 0.45, // Legs
-    1.65, 2.7, 2.8, 3.8, 2.4,
-    2.7, 0.2, 0.8,  2.4, // Torso and arms
-    0.0};                   // Unused joint
-  Vector20 qdot_lim_{
-    23.0, 23.0, 23.0, 14.0, 9.0,
-    23.0, 23.0, 23.0, 14.0, 9.0, // Legs
-    23.0, 9.0, 9.0, 9.0, 20.0,
-    9.0, 9.0, 9.0, 20.0, // Torso and arms
-    0.0};                   // Unused joint
   
   Vector20 kp_{
     1500.0, 1500.0, 1500.0, 1500.0, 1500.0,
@@ -116,22 +94,6 @@ struct H1ConfigParameter
          25.0, 25.0, 25.0, 25.0, 5.0,
           6.0,  2.0,  2.0,  2.0, 2.0,
           2.0,  2.0,  2.0,  2.0, 0.0};
-
-  Vector20 kp_torque_{
-    200.0, 200.0, 200.0, 300.0, 40.0,
-         200.0, 200.0, 200.0, 300.0, 40.0,
-         50.0, 
-         50.0, 50.0, 50.0, 50.0,
-         50.0, 50.0, 50.0, 50.0, 
-         0.0};
-  
-  Vector20 kd_torque_{
-    5.0, 5.0, 5.0, 6.0, 2.0,
-         5.0, 5.0, 5.0, 6.0, 2.0,
-          3.0,  
-          2.0,  2.0,  2.0, 2.0,
-          2.0,  2.0,  2.0,  2.0, 
-          0.0};
   
   Vector20 kp_stand_{
     1500.0, 1500.0, 1500.0, 1500.0, 1500.0,
@@ -191,10 +153,6 @@ struct H1CommandData
   std::vector<double> kpOut_;
   /* D gains */
   std::vector<double> kdOut_;
-  /* P gains for Torque Control */
-  std::vector<double> kpOutTorque_;
-  /* D gains for Torque Control */
-  std::vector<double> kdOutTorque_;
 };
 
 class H1Control;
@@ -220,8 +178,6 @@ protected:
   
   control_status_t status_ = STATUS_INIT;
   control_status_t prev_status_ = STATUS_RUN;
-
-  ControlMode mode_ = ControlMode::Position;
   
   MCControlUnitree2<H1Control, H1SensorInfo, H1CommandData, H1ConfigParameter> * mc_controller_ = nullptr;
   
@@ -242,14 +198,51 @@ private:
   std::unordered_map<int, int> mcJointIdToJointId_;
   
   Vector20 q_init_;
-  Vector20 q_lim_lower_;
-  Vector20 q_lim_upper_;
-  Vector20 q_dot_lim_lower_;
-  Vector20 q_dot_lim_upper_;
+
+  // Limits updated through the official Unitree H1 (19-DoF) URDF documentation
+  Vector20 q_lim_lower_{
+    -2.7402, -1.0472, -2.9322, -0.1745, -0.8727, // Left Leg (Hip Yaw, Roll, Pitch, Knee, Ankle)
+    -2.7402, -1.0472, -2.9322, -0.1745, -0.8727, // Right Leg (Hip Yaw, Roll, Pitch, Knee, Ankle)
+    -2.6180,                                     // Waist Yaw
+    -3.1416, -0.2269, -1.9199, -0.9757,          // Left Arm (Shoulder Pitch, Roll, Yaw, Elbow)
+    -3.1416, -0.2269, -1.9199, -0.9757,          // Right Arm (Shoulder Pitch, Roll, Yaw, Elbow)
+    0.0};                                        // Unused joint
+
+  Vector20 q_lim_upper_{
+    2.7402,  1.7453,  2.5482,  2.4260,  0.5760,  // Left Leg (Hip Yaw, Roll, Pitch, Knee, Ankle)
+    2.7402,  1.7453,  2.5482,  2.4260,  0.5760,  // Right Leg (Hip Yaw, Roll, Pitch, Knee, Ankle)
+    2.6180,                                      // Waist Yaw
+    2.0944,  2.4784,  1.9199,  2.1850,           // Left Arm (Shoulder Pitch, Roll, Yaw, Elbow)
+    2.0944,  2.4784,  1.9199,  2.1850,           // Right Arm (Shoulder Pitch, Roll, Yaw, Elbow)
+    0.0};                                        // Unused joint
+
+  Vector20 q_dot_lim_upper_{
+    23.0, 23.0, 23.0, 14.0, 9.0,                 // Left Leg max velocities (Rad/s)
+    23.0, 23.0, 23.0, 14.0, 9.0,                 // Right Leg max velocities (Rad/s)
+    23.0,                                        // Waist Yaw max velocity
+    23.0, 9.0,  9.0,  9.0,                       // Left Arm max velocities
+    23.0, 9.0,  9.0,  9.0,                       // Right Arm max velocities
+    0.0};                                        // Unused joint
+
+  Vector20 q_dot_lim_lower_ = -q_dot_lim_upper_;
+
   Vector20 kp_;  
   Vector20 kd_;
-  Vector20 kp_torque_;  
-  Vector20 kd_torque_;
+  Vector20 kp_torque_{
+    200.0, 200.0, 200.0, 300.0, 40.0,
+         200.0, 200.0, 200.0, 300.0, 40.0,
+         100.0, 
+         100.0, 100.0, 100.0, 100.0,
+         100.0, 100.0, 100.0, 100.0, 
+         0.0};
+  
+  Vector20 kd_torque_{
+    5.0, 5.0, 5.0, 6.0, 2.0,
+         5.0, 5.0, 5.0, 6.0, 2.0,
+          5.0,  
+          5.0,  5.0,  5.0, 5.0,
+          5.0,  5.0,  5.0, 5.0, 
+          0.0};
   Vector20 kp_wait_;
   Vector20 kd_wait_;
   Vector20 tau_ff_;
@@ -353,8 +346,6 @@ public:
   const std::unordered_map<int, int> & mcJointIdToJointId() const { return mcJointIdToJointId_; }
   
   int mcJointIdToJointId(int i) { return mcJointIdToJointId_[i]; }
-  
-  void setControlMode(const std::string & mode);
   
   void LowCommandWriter();
   

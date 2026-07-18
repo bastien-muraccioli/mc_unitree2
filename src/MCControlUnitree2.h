@@ -40,9 +40,12 @@ public:
   bool getServoGainsByName(const std::string & jn, double & p, double & d);
   bool setServoGains(const std::vector<double> & p_vec, const std::vector<double> & d_vec);
   bool setServoGainsByName(const std::string & jn, double p, double d);
+
+  ControlMode mode() const { return mode_; }
   
 private:
   void addLogEntryRobotInfo();
+  void setControlMode(const std::string & mode);
   
   RobotConfigParameter config_param_;
   
@@ -59,6 +62,9 @@ private:
   mc_rtc::Logger & logger_;
   double delay_;
   bool controller_init_once_;
+
+  /*! Current control mode, shared across all robot-specific interfaces (H1, G1, Go2, ...) */
+  ControlMode mode_ = ControlMode::Position;
 };
 
 
@@ -158,6 +164,14 @@ MCControlUnitree2<RobotControl, RobotSensorInfo, RobotCommandData, RobotConfigPa
     for (size_t i = 0 ; i < kd.size() ; i++)
       config_param_.kd_stand_(i) = kd[i];
   }
+  if(config_robot.has("mode"))
+  {
+    mode_ = config_robot("mode");
+  }
+  else
+  {
+    mc_rtc::log::info("[mc_unitree] 'mode' config entry missing, using default (Position)");
+  }
   
   robot_ = std::make_shared<RobotControl>(this, &robot, config_param_);
   
@@ -232,7 +246,7 @@ void MCControlUnitree2<RobotControl, RobotSensorInfo, RobotCommandData, RobotCon
     auto &datastore = globalController_.controller().datastore();
     if (datastore.has("ControlMode"))
     {
-      robot_->setControlMode(datastore.get<std::string>("ControlMode"));
+      setControlMode(datastore.get<std::string>("ControlMode"));
     }
     
     for (size_t i = 0 ; i < jsize ; i++)
@@ -240,20 +254,24 @@ void MCControlUnitree2<RobotControl, RobotSensorInfo, RobotCommandData, RobotCon
       auto mcJointId = robot_->refJointOrderToMCJointId(i);
       if (mcJointId == -1)
         continue;
+
+      cmdData.qOut_[i] = robot.mbc().q[mcJointId][0];
+      cmdData.dqOut_[i] = robot.mbc().alpha[mcJointId][0];
+      cmdData.tauOut_[i] = robot.mbc().jointTorque[mcJointId][0];
       
-      switch(config_param_.mode_)
-      {
-        case mc_unitree::ControlMode::Position:
-          cmdData.qOut_[i] = robot.mbc().q[mcJointId][0];
-          cmdData.dqOut_[i] = robot.mbc().alpha[mcJointId][0];
-          break;
-        case mc_unitree::ControlMode::Velocity:
-          cmdData.dqOut_[i] = robot.mbc().alpha[mcJointId][0];
-          break;
-        case mc_unitree::ControlMode::Torque:
-          cmdData.tauOut_[i] = robot.mbc().jointTorque[mcJointId][0];
-          break;
-      }
+      // switch(config_param_.mode_)
+      // {
+      //   case mc_unitree::ControlMode::Position:
+      //     cmdData.qOut_[i] = robot.mbc().q[mcJointId][0];
+      //     cmdData.dqOut_[i] = robot.mbc().alpha[mcJointId][0];
+      //     break;
+      //   case mc_unitree::ControlMode::Velocity:
+      //     cmdData.dqOut_[i] = robot.mbc().alpha[mcJointId][0];
+      //     break;
+      //   case mc_unitree::ControlMode::Torque:
+      //     cmdData.tauOut_[i] = robot.mbc().jointTorque[mcJointId][0];
+      //     break;
+      // }
     }
     
     if(config_param_.network_.empty())
@@ -279,6 +297,15 @@ void MCControlUnitree2<RobotControl, RobotSensorInfo, RobotCommandData, RobotCon
           static_cast<unsigned int>((globalController_.timestep() * 1000 - elapsed)) * 1000));
     }
   }
+}
+
+template <typename RobotControl, typename RobotSensorInfo, typename RobotCommandData, typename RobotConfigParameter>
+void MCControlUnitree2<RobotControl, RobotSensorInfo, RobotCommandData, RobotConfigParameter>::setControlMode(const std::string & mode)
+{
+  if (mode == "Position") { mode_ = ControlMode::Position; return; }
+  if (mode == "Velocity") { mode_ = ControlMode::Velocity; return; }
+  if (mode == "Torque")   { mode_ = ControlMode::Torque; return; }
+  mc_rtc::log::error("[mc_unitree] {} ControlMode not supported", mode);
 }
 
 template <typename RobotControl, typename RobotSensorInfo, typename RobotCommandData, typename RobotConfigParameter>

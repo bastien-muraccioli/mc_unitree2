@@ -39,40 +39,6 @@ H1Control::H1Control(MCControlUnitree2<H1Control, H1SensorInfo, H1CommandData, H
   }
   else q_init_ = config_param.q_init_;
 
-  if(h1_config.has("q_lim_lower"))
-  {
-    Eigen::VectorXd q_lim_lower = h1_config("q_lim_lower");
-    if(q_lim_lower.size() != 20) q_lim_lower_ = config_param.q_lim_lower_;
-    else q_lim_lower_ = q_lim_lower.cast<float>();
-  }
-  else q_lim_lower_ = config_param.q_lim_lower_;
-
-  if(h1_config.has("q_lim_upper"))
-  {
-    Eigen::VectorXd q_lim_upper = h1_config("q_lim_upper");
-    if(q_lim_upper.size() != 20) q_lim_upper_ = config_param.q_lim_upper_;
-    else q_lim_upper_ = q_lim_upper.cast<float>();
-  }
-  else q_lim_upper_ = config_param.q_lim_upper_;
-
-  if(h1_config.has("qdot_lim"))
-  {
-    Eigen::VectorXd qdot_lim_upper = h1_config("qdot_lim");
-    Eigen::VectorXd qdot_lim_lower = -1.0 * qdot_lim_upper;
-    if(qdot_lim_upper.size() != 20){
-      q_dot_lim_upper_ = config_param.qdot_lim_;
-      q_dot_lim_lower_ = -1.0 * config_param.qdot_lim_;
-    }
-    else{
-      q_dot_lim_upper_ = qdot_lim_upper.cast<float>();
-      q_dot_lim_lower_ = qdot_lim_lower.cast<float>();
-    }
-  }
-  else {
-    q_dot_lim_lower_ = -1.0 * config_param.qdot_lim_;
-    q_dot_lim_upper_ = config_param.qdot_lim_;
-  }
-
   if(h1_config.has("kp"))
   {
     Eigen::VectorXd kp = h1_config("kp");
@@ -88,22 +54,6 @@ H1Control::H1Control(MCControlUnitree2<H1Control, H1SensorInfo, H1CommandData, H
     else kd_ = kd.cast<float>();
   }
   else kd_ = config_param.kd_;
-
-  if(h1_config.has("kp_torque"))
-  {
-    Eigen::VectorXd kp_torque = h1_config("kp_torque");
-    if(kp_torque.size() != 20) kp_torque_ = config_param.kp_torque_;
-    else kp_torque_ = kp_torque.cast<float>();
-  }
-  else kp_torque_ = config_param.kp_torque_;
-
-  if(h1_config.has("kd_torque"))
-  {
-    Eigen::VectorXd kd_torque = h1_config("kd_torque");
-    if(kd_torque.size() != 20) kd_torque_ = config_param.kd_torque_;
-    else kd_torque_ = kd_torque.cast<float>();
-  }
-  else kd_torque_ = config_param.kd_torque_;
 
   if(h1_config.has("kp_wait"))
   {
@@ -142,14 +92,10 @@ H1Control::H1Control(MCControlUnitree2<H1Control, H1SensorInfo, H1CommandData, H
   cmdOut_.tauOut_.resize(robot->refJointOrder().size(), 0.0);
   cmdOut_.kpOut_.resize(robot->refJointOrder().size());
   cmdOut_.kdOut_.resize(robot->refJointOrder().size());
-  cmdOut_.kpOutTorque_.resize(robot->refJointOrder().size());
-  cmdOut_.kdOutTorque_.resize(robot->refJointOrder().size());
   for (size_t i = 0 ; i < robot_->refJointOrder().size() ; i++)
   {
     cmdOut_.kpOut_[i] = kp_[i];
     cmdOut_.kdOut_[i] = kd_[i];
-    cmdOut_.kpOutTorque_[i] = kp_torque_[i];
-    cmdOut_.kdOutTorque_[i] = kd_torque_[i];
   }
   
   refJointOrderToMCJointId_.resize(kNumMotors, -1);
@@ -168,8 +114,6 @@ H1Control::H1Control(MCControlUnitree2<H1Control, H1SensorInfo, H1CommandData, H
       q_init_(i) = robot->stance().at(jname)[0];
     }
   }
-
-  mode_ = config_param.mode_;
 
   const std::string &network = config_param.network_;
 
@@ -526,47 +470,62 @@ void H1Control::Control()
     }
 
     auto &datastore = mc_controller_->controller().controller().datastore();
-    if (datastore.has("ControlMode"))
-    {
-      setControlMode(datastore.get<std::string>("ControlMode"));
-    }
 
     time_run_ += control_dt_;
 
     mc_controller_->run(stateIn_, cmdOut_);
     
     // Send commands to the robot
-    if(mode_ == ControlMode::Position)
+    for(size_t i = 0; i < robot_->refJointOrder().size(); ++i)
     {
-      for (size_t i = 0 ; i < robot_->refJointOrder().size() ; ++i)
+      switch(mc_controller_->mode())
       {
-        auto motorId = jointIdsToMotorIds[i];
-        motor_command_tmp.kp.at(motorId) = cmdOut_.kpOut_[i];
-        motor_command_tmp.kd.at(motorId) = cmdOut_.kdOut_[i];
-        motor_command_tmp.q_ref.at(motorId) = cmdOut_.qOut_[i];
-        motor_command_tmp.dq_ref.at(motorId) = cmdOut_.dqOut_[i];
-        motor_command_tmp.tau_ff.at(motorId) = 0.f;
-      }
-      break;
-    }
-    // Torque control by doing inverse PD command (More precise than adding torque feedforward): q_ref = q + Kp^-1 (tau_cmd + Kd * dq)
-    else if(mode_ == ControlMode::Torque) 
-    {
-      auto q_ref = cmdOut_.qOut_;
+        case ControlMode::Position:
+        {
+          auto motorId = jointIdsToMotorIds[i];
+          motor_command_tmp.kp.at(motorId) = cmdOut_.kpOut_[i];
+          motor_command_tmp.kd.at(motorId) = cmdOut_.kdOut_[i];
+          motor_command_tmp.q_ref.at(motorId) = cmdOut_.qOut_[i];
+          motor_command_tmp.dq_ref.at(motorId) = cmdOut_.dqOut_[i];
+          motor_command_tmp.tau_ff.at(motorId) = 0.f;
+          break;
+        }
 
-      for (size_t i = 0 ; i < robot_->refJointOrder().size() ; ++i)
-      {
-        auto motorId = jointIdsToMotorIds[i];
-        motor_command_tmp.q_ref.at(motorId) = ms_tmp_ptr->q.at(motorId) + (1.0f / cmdOut_.kpOutTorque_[i]) * (cmdOut_.tauOut_[i] + cmdOut_.kdOutTorque_[i] * ms_tmp_ptr->dq.at(motorId));
-        motor_command_tmp.dq_ref.at(motorId) = 0.f;
-        motor_command_tmp.kp.at(motorId) = cmdOut_.kpOutTorque_[i];
-        motor_command_tmp.kd.at(motorId) = cmdOut_.kdOutTorque_[i];
-        motor_command_tmp.tau_ff.at(motorId) = 0.f;
+        case ControlMode::Velocity:
+        {
+          auto motorId = jointIdsToMotorIds[i];
+          motor_command_tmp.kp.at(motorId) = 0.f;
+          motor_command_tmp.kd.at(motorId) = cmdOut_.kdOut_[i];
+          motor_command_tmp.q_ref.at(motorId) = 0.f;
+          motor_command_tmp.dq_ref.at(motorId) = cmdOut_.dqOut_[i];
+          motor_command_tmp.tau_ff.at(motorId) = 0.f;
+          break;
+        }
+
+        // Torque control by doing inverse PD command: q_ref = q + (1/Kp) * (tau + Kd * dq)
+        case ControlMode::Torque:
+        {
+          auto motorId = jointIdsToMotorIds[i];
+          motor_command_tmp.kp.at(motorId) = kp_torque_[i];
+          motor_command_tmp.kd.at(motorId) = kd_torque_[i];
+          motor_command_tmp.q_ref.at(motorId) =
+              ms_tmp_ptr->q.at(motorId)
+              + (1.0f / kp_torque_[i])
+                    * (cmdOut_.tauOut_[i]
+                      + kd_torque_[i] * ms_tmp_ptr->dq.at(motorId));
+          motor_command_tmp.dq_ref.at(motorId) = 0.f;
+          motor_command_tmp.tau_ff.at(motorId) = 0.f;
+          break;
+        }
+
+        default:
+        {
+          mc_rtc::log::error("[mc_unitree] Unknown control mode!");
+          status_ = STATUS_DAMPING;
+          break;
+        }
       }
-      break;
     }
-    mc_rtc::log::error("[mc_unitree] Unknown control mode!");
-    status_ = STATUS_DAMPING;
     break;
   }
   
@@ -730,17 +689,3 @@ void H1Control::loopbackState(const H1CommandData & data)
       stateIn_.qIn_[i] = robot_->ql()[i][0];
   }
 }
-
-void H1Control::setControlMode(const std::string &mode) {
-  if (mode.compare("Position") == 0) {
-    mode_ = ControlMode::Position;
-    return;
-  }
-  else if (mode.compare("Torque") == 0) {
-   mode_ = ControlMode::Torque;
-   return;
-  }
-  else {
-    mc_rtc::log::error("{} ControlMode not supported", mode);
-  }
-} 
