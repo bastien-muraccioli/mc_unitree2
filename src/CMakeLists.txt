@@ -10,11 +10,6 @@ set(UNITREE_SDK2_SRC_DIR unitree_sdk2 CACHE STRING "Set unitree sdk2 source dire
 
 set(CMAKE_INSTALL_RPATH "$ENV{LD_LIBRARY_PATH}")
 
-find_package(mc_rtc REQUIRED)
-find_package(Boost REQUIRED COMPONENTS program_options)
-find_package(unitree_sdk2 REQUIRED)
-find_package(Threads REQUIRED)
-
 include_directories(
   ${CMAKE_INSTALL_PREFIX}/include/ddscxx
 )
@@ -53,6 +48,7 @@ if (GENERATE_GO2_CONTROLLER)
   add_executable(${GO2_CONTROLLER_NAME}
     ${SOURCES}
     ${GO2_SOURCES}
+    CLI11::CLI11
   )
   
   target_link_libraries(${GO2_CONTROLLER_NAME}
@@ -98,6 +94,7 @@ if (GENERATE_H1_CONTROLLER)
     Boost::program_options
     unitree_sdk2
     fort
+    CLI11::CLI11
   )
   
   install(TARGETS ${H1_CONTROLLER_NAME} DESTINATION bin)
