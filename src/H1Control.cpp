@@ -89,6 +89,22 @@ H1Control::H1Control(MCControlUnitree2<H1Control, H1SensorInfo, H1CommandData, H
   }
   else kd_ = config_param.kd_;
 
+  if(h1_config.has("kp_torque"))
+  {
+    Eigen::VectorXd kp_torque = h1_config("kp_torque");
+    if(kp_torque.size() != 20) kp_torque_ = config_param.kp_torque_;
+    else kp_torque_ = kp_torque.cast<float>();
+  }
+  else kp_torque_ = config_param.kp_torque_;
+
+  if(h1_config.has("kd_torque"))
+  {
+    Eigen::VectorXd kd_torque = h1_config("kd_torque");
+    if(kd_torque.size() != 20) kd_torque_ = config_param.kd_torque_;
+    else kd_torque_ = kd_torque.cast<float>();
+  }
+  else kd_torque_ = config_param.kd_torque_;
+
   if(h1_config.has("kp_wait"))
   {
     Eigen::VectorXd kp_wait = h1_config("kp_wait");
@@ -126,10 +142,14 @@ H1Control::H1Control(MCControlUnitree2<H1Control, H1SensorInfo, H1CommandData, H
   cmdOut_.tauOut_.resize(robot->refJointOrder().size(), 0.0);
   cmdOut_.kpOut_.resize(robot->refJointOrder().size());
   cmdOut_.kdOut_.resize(robot->refJointOrder().size());
+  cmdOut_.kpOutTorque_.resize(robot->refJointOrder().size());
+  cmdOut_.kdOutTorque_.resize(robot->refJointOrder().size());
   for (size_t i = 0 ; i < robot_->refJointOrder().size() ; i++)
   {
     cmdOut_.kpOut_[i] = kp_[i];
     cmdOut_.kdOut_[i] = kd_[i];
+    cmdOut_.kpOutTorque_[i] = kp_torque_[i];
+    cmdOut_.kdOutTorque_[i] = kd_torque_[i];
   }
   
   refJointOrderToMCJointId_.resize(kNumMotors, -1);
@@ -529,14 +549,19 @@ void H1Control::Control()
       }
       break;
     }
-    else if(mode_ == ControlMode::Torque)
+    // Torque control by doing inverse PD command (More precise than adding torque feedforward): q_ref = q + Kp^-1 (tau_cmd + Kd * dq)
+    else if(mode_ == ControlMode::Torque) 
     {
+      auto q_ref = cmdOut_.qOut_;
+
       for (size_t i = 0 ; i < robot_->refJointOrder().size() ; ++i)
       {
         auto motorId = jointIdsToMotorIds[i];
-        motor_command_tmp.kp.at(motorId) = 0.f;
-        motor_command_tmp.kd.at(motorId) = 0.f;
-        motor_command_tmp.tau_ff.at(motorId) = cmdOut_.tauOut_[i];
+        motor_command_tmp.q_ref.at(motorId) = ms_tmp_ptr->q.at(motorId) + (1.0f / cmdOut_.kpOutTorque_[i]) * (cmdOut_.tauOut_[i] + cmdOut_.kdOutTorque_[i] * ms_tmp_ptr->dq.at(motorId));
+        motor_command_tmp.dq_ref.at(motorId) = 0.f;
+        motor_command_tmp.kp.at(motorId) = cmdOut_.kpOutTorque_[i];
+        motor_command_tmp.kd.at(motorId) = cmdOut_.kdOutTorque_[i];
+        motor_command_tmp.tau_ff.at(motorId) = 0.f;
       }
       break;
     }

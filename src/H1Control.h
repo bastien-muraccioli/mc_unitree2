@@ -116,6 +116,22 @@ struct H1ConfigParameter
          25.0, 25.0, 25.0, 25.0, 5.0,
           6.0,  2.0,  2.0,  2.0, 2.0,
           2.0,  2.0,  2.0,  2.0, 0.0};
+
+  Vector20 kp_torque_{
+    200.0, 200.0, 200.0, 300.0, 40.0,
+         200.0, 200.0, 200.0, 300.0, 40.0,
+         50.0, 
+         50.0, 50.0, 50.0, 50.0,
+         50.0, 50.0, 50.0, 50.0, 
+         0.0};
+  
+  Vector20 kd_torque_{
+    5.0, 5.0, 5.0, 6.0, 2.0,
+         5.0, 5.0, 5.0, 6.0, 2.0,
+          3.0,  
+          2.0,  2.0,  2.0, 2.0,
+          2.0,  2.0,  2.0,  2.0, 
+          0.0};
   
   Vector20 kp_stand_{
     1500.0, 1500.0, 1500.0, 1500.0, 1500.0,
@@ -175,6 +191,10 @@ struct H1CommandData
   std::vector<double> kpOut_;
   /* D gains */
   std::vector<double> kdOut_;
+  /* P gains for Torque Control */
+  std::vector<double> kpOutTorque_;
+  /* D gains for Torque Control */
+  std::vector<double> kdOutTorque_;
 };
 
 class H1Control;
@@ -228,6 +248,8 @@ private:
   Vector20 q_dot_lim_upper_;
   Vector20 kp_;  
   Vector20 kd_;
+  Vector20 kp_torque_;  
+  Vector20 kd_torque_;
   Vector20 kp_wait_;
   Vector20 kd_wait_;
   Vector20 tau_ff_;

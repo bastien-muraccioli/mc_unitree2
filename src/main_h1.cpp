@@ -28,7 +28,9 @@ int main(int argc, char * argv[])
   /* Usage example: MCControlUnitree2 -n lo -f @ETC_PATH@/mc_unitree/mc_rtc_xxxxx.yaml */
   
   fs::path config_path = mc_rtc::user_config_directory_path("mc_rtc.conf");
+  fs::path config_path = mc_rtc::user_config_directory_path("mc_rtc.conf");
   // Load user's local configuration if it exists
+  if(!fs::exists(config_path)) { config_path.replace_extension(".yaml"); }
   if(!fs::exists(config_path)) { config_path.replace_extension(".yaml"); }
   std::string check_file = config_path.string();
   if(!file_exists(check_file))
