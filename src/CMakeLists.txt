@@ -1,5 +1,6 @@
 option(GENERATE_GO2_CONTROLLER "Build Go2 controller" OFF)
 option(GENERATE_H1_CONTROLLER "Build H1 controller" OFF)
+option(GENERATE_G1_CONTROLLER "Build G1 controller" OFF)
 
 option(ENABLE_RT_PREEMPT "Create thread on RT preemt kernel" OFF)
 if (ENABLE_RT_PREEMPT)
@@ -48,7 +49,6 @@ if (GENERATE_GO2_CONTROLLER)
   add_executable(${GO2_CONTROLLER_NAME}
     ${SOURCES}
     ${GO2_SOURCES}
-    CLI11::CLI11
   )
   
   target_link_libraries(${GO2_CONTROLLER_NAME}
@@ -58,6 +58,7 @@ if (GENERATE_GO2_CONTROLLER)
     Boost::program_options
     unitree_sdk2
     fort
+    CLI11::CLI11
   )
   
   install(TARGETS ${GO2_CONTROLLER_NAME} DESTINATION bin)
@@ -101,5 +102,38 @@ if (GENERATE_H1_CONTROLLER)
   
 endif()
 
-
+if (GENERATE_G1_CONTROLLER)
+  
+  set(G1_CONTROLLER_NAME MCControlG1)
+  set(G1_HEADERS
+    G1Control.h
+  )
+  # G1 uses the unitree_hg IDL shipped with unitree_sdk2, no example source is needed
+  set(G1_SOURCES
+    main_g1.cpp
+    G1Control.cpp
+  )
+  
+  include_directories(
+    ${CMAKE_CURRENT_SOURCE_DIR}/../libfort
+  )
+  
+  add_executable(${G1_CONTROLLER_NAME}
+    ${SOURCES}
+    ${G1_SOURCES}
+  )
+  
+  target_link_libraries(${G1_CONTROLLER_NAME}
+    PUBLIC
+    pthread
+    mc_rtc::mc_control
+    Boost::program_options
+    unitree_sdk2
+    fort
+    CLI11::CLI11
+  )
+  
+  install(TARGETS ${G1_CONTROLLER_NAME} DESTINATION bin)
+  
+endif()
 

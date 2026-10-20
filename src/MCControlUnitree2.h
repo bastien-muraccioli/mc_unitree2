@@ -13,6 +13,22 @@
 namespace mc_unitree
 {
 /**
+ * @brief Key of the robot configuration in the "Unitree" section of the configuration file
+ *
+ * The full robot name is used if present (e.g. g1_29dof_mode_15_revo2), otherwise the robot family, i.e. the robot
+ * name up to the first '_' (e.g. g1), so that all the variants of a robot can share the same configuration.
+ *
+ * @return The key, or an empty string if none is found
+ */
+inline std::string robotConfigKey(const mc_rtc::Configuration & unitreeConfig, const std::string & robot_name)
+{
+  if(unitreeConfig.has(robot_name)) { return robot_name; }
+  const std::string family = robot_name.substr(0, robot_name.find('_'));
+  if(unitreeConfig.has(family)) { return family; }
+  return "";
+}
+
+/**
  * @brief mc_rtc control interface for unitree robots
  */
 template <typename RobotControl, typename RobotSensorInfo, typename RobotCommandData, typename RobotConfigParameter>
@@ -79,14 +95,17 @@ MCControlUnitree2<RobotControl, RobotSensorInfo, RobotCommandData, RobotConfigPa
   auto unitreeConfig = controller.configuration().config("Unitree");
   
   auto robot_name = controller.robot().name();
-  if(!unitreeConfig.has(robot_name))
+  const std::string config_key = robotConfigKey(unitreeConfig, robot_name);
+  if(config_key.empty())
   {
     mc_rtc::log::error(
-      "[mc_unitree] A name that matches the controller robot name is not defined in the configuration file");
+      "[mc_unitree] No configuration for robot {} in the Unitree section of the configuration file (expected an entry {} or {})",
+      robot_name, robot_name, robot_name.substr(0, robot_name.find('_')));
     return;
   }
+  mc_rtc::log::info("[mc_unitree] Using the Unitree configuration entry '{}'", config_key);
   
-  mc_rtc::Configuration config_robot = unitreeConfig(robot_name);
+  mc_rtc::Configuration config_robot = unitreeConfig(config_key);
   
   /* Get communication information */
   if (network.empty())
@@ -127,7 +146,7 @@ MCControlUnitree2<RobotControl, RobotSensorInfo, RobotCommandData, RobotConfigPa
     mc_rtc::log::error("[mc_unitree] Wrong size of kp {} != {}, using default kp",
                         kp.size(), config_param_.kp_.size());
     
-    for (size_t i = 0 ; i < kp.size() ; i++)
+    for (size_t i = 0 ; i < kp.size() && i < static_cast<size_t>(config_param_.kp_.size()) ; i++)
       config_param_.kp_(i) = kp[i];
   }
 
@@ -139,7 +158,7 @@ MCControlUnitree2<RobotControl, RobotSensorInfo, RobotCommandData, RobotConfigPa
     mc_rtc::log::error("[mc_unitree] Wrong size of kd {} != {}, using default kd",
                          kd.size(), config_param_.kd_.size());
     
-    for (size_t i = 0 ; i < kd.size() ; i++)
+    for (size_t i = 0 ; i < kd.size() && i < static_cast<size_t>(config_param_.kd_.size()) ; i++)
       config_param_.kd_(i) = kd[i];
   }
   if(config_robot.has("kp_wait") && config_robot("kp_wait").size() != config_param_.kp_stand_.size())
@@ -150,7 +169,7 @@ MCControlUnitree2<RobotControl, RobotSensorInfo, RobotCommandData, RobotConfigPa
     mc_rtc::log::error("[mc_unitree] Wrong size of kp_wait {} != {}, using default kp_wait",
                         kp.size(), config_param_.kp_stand_.size());
     
-    for (size_t i = 0 ; i < kp.size() ; i++)
+    for (size_t i = 0 ; i < kp.size() && i < static_cast<size_t>(config_param_.kp_stand_.size()) ; i++)
       config_param_.kp_stand_(i) = kp[i];
   }
   if(config_robot.has("kd_wait") && config_robot("kd_wait").size() != config_param_.kd_stand_.size())
@@ -161,7 +180,7 @@ MCControlUnitree2<RobotControl, RobotSensorInfo, RobotCommandData, RobotConfigPa
     mc_rtc::log::error("[mc_unitree] Wrong size of kd_wait {} != {}, using default kd_wait",
                         kd.size(), config_param_.kd_stand_.size());
 
-    for (size_t i = 0 ; i < kd.size() ; i++)
+    for (size_t i = 0 ; i < kd.size() && i < static_cast<size_t>(config_param_.kd_stand_.size()) ; i++)
       config_param_.kd_stand_(i) = kd[i];
   }
   if(config_robot.has("mode"))
@@ -217,9 +236,7 @@ MCControlUnitree2<RobotControl, RobotSensorInfo, RobotCommandData, RobotConfigPa
 template <typename RobotControl, typename RobotSensorInfo, typename RobotCommandData, typename RobotConfigParameter>
 MCControlUnitree2<RobotControl, RobotSensorInfo, RobotCommandData, RobotConfigParameter>::~MCControlUnitree2()
 {
-#if defined(__ENABLE_RT_PREEMPT__)
-  pthread_join(lowCmdWriteThread, NULL);
-#endif
+  // Robot specific threads are joined by the RobotControl destructor
 }
 
 template <typename RobotControl, typename RobotSensorInfo, typename RobotCommandData, typename RobotConfigParameter>
@@ -380,8 +397,8 @@ bool MCControlUnitree2<RobotControl, RobotSensorInfo, RobotCommandData, RobotCon
     return false;
   }
   int rjo_idx = std::distance(rjo.begin(), rjo_it);
-  robot_->setKp(robot_->mcJointIdToJointId(rjo_idx), p);
-  robot_->setKd(robot_->mcJointIdToJointId(rjo_idx), d);
+  robot_->setKp(rjo_idx, p);
+  robot_->setKd(rjo_idx, d);
   
   return true;
 }

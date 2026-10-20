@@ -29,6 +29,70 @@ Unitree:
                6.0,  2.0,  2.0,  2.0,  2.0,
                2.0,  2.0,  2.0,  2.0,  0.0]
     
+  # G1: the "g1" entry is used for all the G1 models (MainRobot: G1_mode_<mode_machine of your robot>, see mc_g1).
+  # An entry named after the full mc_rtc robot name (e.g. g1_29dof_mode_15_revo2) takes precedence over it.
+  # All vectors are 29 values in MOTOR order (same as unitree_sdk2 examples), whatever the model:
+  #   0-5: left leg (hip pitch, hip roll, hip yaw, knee, ankle pitch, ankle roll), 6-11: right leg
+  #   12-14: waist (yaw, roll, pitch)
+  #   15-21: left arm (shoulder pitch, roll, yaw, elbow, wrist roll, wrist pitch, wrist yaw), 22-28: right arm
+  # Values of motors that are not in the robot model (e.g. wrist pitch/yaw for 23dof) are used to hold them in place.
+  g1:
+    network-interface: lo
+    # Body sensor fed with the torso IMU (rt/secondary_imu), the main pelvis IMU (rt/lowstate) feeds the default
+    # body sensor ("Accelerometer"). Set to "" to ignore the torso IMU.
+    torso-imu-sensor: TorsoAccelerometer
+    # Stop (damping) if the mode_machine reported by the real robot does not match the hardware revision of the model
+    check-mode-machine: true
+    # Release the Unitree motion control service before taking low-level control (real robot only)
+    release-motion-mode: true
+    # Position, Velocity or Torque
+    mode: Position
+    # BrainCo Revo2 hands (G1_mode_<N>_Revo2 models): driven through rt/brainco/<left|right>/cmd, requires
+    # brainco_hand_service (https://github.com/unitreerobotics/brainco_hand_service) running on the robot
+    revo2-hands: true
+    # Finger speed sent to the hands, normalized in [0, 1] (1.0 recommended by Unitree)
+    hand-speed: 1.0
+
+    # High gains for Position/Velocity control (Unitree xr_teleoperate values, used on the real robot), except the
+    # ankle pitch: 300 instead of 80, the robot standing with joint PD only needs > ~100 Nm/rad per ankle not to tip over
+    # (tested on the real G1, mode_machine 5)
+    kp: [300.0, 300.0, 300.0, 300.0, 300.0, 300.0,
+         300.0, 300.0, 300.0, 300.0, 300.0, 300.0,
+         300.0, 300.0, 300.0,
+          80.0,  80.0,  80.0,  80.0, 40.0, 40.0, 40.0,
+          80.0,  80.0,  80.0,  80.0, 40.0, 40.0, 40.0]
+
+    kd: [3.0, 3.0, 3.0, 3.0, 3.0, 3.0,
+         3.0, 3.0, 3.0, 3.0, 3.0, 3.0,
+         3.0, 3.0, 3.0,
+         3.0, 3.0, 3.0, 3.0, 1.5, 1.5, 1.5,
+         3.0, 3.0, 3.0, 3.0, 1.5, 1.5, 1.5]
+
+    kp_wait: [300.0, 300.0, 300.0, 300.0, 300.0, 300.0,
+              300.0, 300.0, 300.0, 300.0, 300.0, 300.0,
+              300.0, 300.0, 300.0,
+               80.0,  80.0,  80.0,  80.0, 40.0, 40.0, 40.0,
+               80.0,  80.0,  80.0,  80.0, 40.0, 40.0, 40.0]
+
+    kd_wait: [3.0, 3.0, 3.0, 3.0, 3.0, 3.0,
+              3.0, 3.0, 3.0, 3.0, 3.0, 3.0,
+              3.0, 3.0, 3.0,
+              3.0, 3.0, 3.0, 3.0, 1.5, 1.5, 1.5,
+              3.0, 3.0, 3.0, 3.0, 1.5, 1.5, 1.5]
+
+    # Softer gains for Torque control through inverse PD (q_ref = q + (tau + kd * dq) / kp), kp must be > 0
+    kp_torque: [100.0, 100.0, 100.0, 150.0, 40.0, 40.0,
+                100.0, 100.0, 100.0, 150.0, 40.0, 40.0,
+                100.0,  40.0,  40.0,
+                 40.0,  40.0,  40.0,  40.0, 40.0, 20.0, 20.0,
+                 40.0,  40.0,  40.0,  40.0, 40.0, 20.0, 20.0]
+
+    kd_torque: [2.0, 2.0, 2.0, 4.0, 2.0, 2.0,
+                2.0, 2.0, 2.0, 4.0, 2.0, 2.0,
+                2.0, 2.0, 2.0,
+                1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+                1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+
   go2:
     network-interface: lo
 
