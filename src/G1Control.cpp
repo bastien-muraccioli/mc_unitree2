@@ -143,8 +143,20 @@ G1Control::G1Control(MCControlG1 * mc_controller, mc_rbdyn::Robot * robot, const
                          torso_imu_sensor_);
     torso_imu_sensor_.clear();
   }
-  mc_rtc::log::info("[mc_unitree] G1: pelvis IMU -> body sensor {}, torso IMU -> body sensor {}",
-                    robot_->bodySensor().name(), torso_imu_sensor_.empty() ? "(none)" : torso_imu_sensor_);
+  /* mc_mujoco fills the "FloatingBase" body sensor with the simulator ground truth, which does not exist on the
+     real robot (nor in unitree_mujoco): it is filled here with the pelvis IMU (same rotation as the pelvis in the
+     URDF, imu_in_pelvis_joint rpy = 0) so that controllers reading FloatingBase get the real orientation/gyro.
+     Position and linear velocity are NOT measured and stay at their default values. Set to "" to disable. */
+  g1_config("floating-base-sensor", floating_base_sensor_);
+  if(!floating_base_sensor_.empty()
+     && (!robot_->hasBodySensor(floating_base_sensor_) || floating_base_sensor_ == robot_->bodySensor().name()))
+  {
+    floating_base_sensor_.clear();
+  }
+  mc_rtc::log::info("[mc_unitree] G1: pelvis IMU -> body sensor {}{}, torso IMU -> body sensor {}",
+                    robot_->bodySensor().name(),
+                    floating_base_sensor_.empty() ? "" : " and " + floating_base_sensor_ + " (orientation, gyro, acc)",
+                    torso_imu_sensor_.empty() ? "(none)" : torso_imu_sensor_);
 
   stateIn_.qIn_.resize(n_joints_, 0.0);
   stateIn_.dqIn_.resize(n_joints_, 0.0);
@@ -831,6 +843,14 @@ void G1Control::UnusedMotorsCommand(g1::MotorCommand & cmd, bool damping)
 void G1Control::SetAdditionalSensors(const g1::MotorState & ms)
 {
   auto & gc = mc_controller_->controller();
+
+  /* Pelvis IMU copied to the FloatingBase body sensor (see the "floating-base-sensor" option) */
+  if(!floating_base_sensor_.empty())
+  {
+    gc.setSensorOrientations({{floating_base_sensor_, Eigen::Quaterniond(mc_rbdyn::rpyToMat(stateIn_.rpyIn_))}});
+    gc.setSensorAngularVelocities({{floating_base_sensor_, stateIn_.rateIn_}});
+    gc.setSensorLinearAccelerations({{floating_base_sensor_, stateIn_.accIn_}});
+  }
 
   /* Torso IMU (rt/secondary_imu), same conventions as the main IMU in MCControlUnitree2::run */
   if(!torso_imu_sensor_.empty())

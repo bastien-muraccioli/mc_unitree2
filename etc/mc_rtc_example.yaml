@@ -41,6 +41,11 @@ Unitree:
     # Body sensor fed with the torso IMU (rt/secondary_imu), the main pelvis IMU (rt/lowstate) feeds the default
     # body sensor ("Accelerometer"). Set to "" to ignore the torso IMU.
     torso-imu-sensor: TorsoAccelerometer
+    # mc_mujoco fills "FloatingBase" with the simulator ground truth, which does not exist on the real robot.
+    # The pelvis IMU orientation/gyro/acc are copied to this body sensor so that controllers reading FloatingBase
+    # (e.g. RL policies: projected gravity, base angular velocity) still work. Position and linear velocity are
+    # NOT available. Set to "" to disable.
+    floating-base-sensor: FloatingBase
     # Stop (damping) if the mode_machine reported by the real robot does not match the hardware revision of the model
     check-mode-machine: true
     # Release the Unitree motion control service before taking low-level control (real robot only)

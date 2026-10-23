@@ -512,6 +512,7 @@ private:
 
   /* Name of the body sensor fed with the torso IMU (rt/secondary_imu), empty if the robot module has none */
   std::string torso_imu_sensor_ = "TorsoAccelerometer";
+  std::string floating_base_sensor_ = "FloatingBase";
   bool torso_imu_warned_ = false;
 
   float time_ = 0.f;
